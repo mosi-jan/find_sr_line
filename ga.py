@@ -19,62 +19,62 @@ class Chromosome:
     def __gt__(self, other):
         return self.Fitness > other.Fitness
 
-
 def CS_index(dataset, genes):
-    centers = []
-    for item in genes:
-        if item[ - 1] == 1:
-            centers.append(item[0:- 1])
-    centers = np.array(centers)
+    M = np.array([g[:-1] for g in genes if g[-1]==1])  # cluster centers
+    k = len(M)  # cluster count
+    n = len(dataset)  # data count
 
-    k = len(centers)
-    n = len(dataset)
+    penalty = 10 * np.amax(cdist(dataset,dataset))
+    if k < 3:
+        return penalty
 
-    if k < 2:
-        return 10 * np.amax(cdist(dataset,dataset))
-    # dist = np.zeros((len(dataset), len(centers)))
-    # for x in dataset:
-    #     for m in centers:
-    #         dist[x,m] =np.linalg.norm(x-m)
+    d = cdist(dataset, M)  # distance of all data to all cluster centers
+    data_cluster_indices = np.argmin(d, axis=1)  # all data clusters , center indices
 
-    d = cdist(dataset,centers)
-    x_center_indices  = np.argmin(d, axis=1)
-
-
-    clusters = [[] for i in range(k)]
-    for i in range(n):
-        clusters[x_center_indices[i]].append(dataset[i])
-    clusters = np.array(clusters)
-
-    Dmax = np.zeros(k)
-    for ci in range(k):
-        if len(clusters[ci]) > 1:
-            Dmax[ci] =np.mean(np.amax(cdist(clusters[ci], clusters[ci]), axis=1))
-        else:
-            Dmax[ci] = 10 * np.amax(cdist(dataset,dataset))
-
-    c = cdist(centers, centers)
+    # calculate all cluster members
+    ci_data_member = []
+    Dmax = []
     for i in range(k):
-        c[i,i] = np.inf
+        ci_data_member.append([dataset[j] for j in range(n) if data_cluster_indices[j]==i])
+        Xi = np.array(ci_data_member[i])
+        if len(Xi) > 1:
+            max_xi = np.amax(cdist(Xi, Xi), axis=0)
+            Dmax.append(np.mean(max_xi))
+        else:
+            Dmax.append(penalty)
+
+    # sum = 0
+    # for i in range(k):
+    #     Xi = np.array(ci_data_member[i])
+    #     if len(Xi) > 0:
+    #         max_xi = np.amax(cdist(Xi, Xi), axis=0)
+    #         sum += np.mean(max_xi)
+    #     else:
+    #         sum += 10 * np.amax(cdist(dataset,dataset))
+    #         # print([len(item) for item in ci_data_member])
+    #
+    # Dmax = sum/k
+    # -----------
+    c = cdist(M, M)
+    for i in range(k):
+        c[i, i] = np.inf
 
     Dmin = np.amin(c, axis=0)
+    # -----------
+    CS = np.mean(Dmax) / np.mean(Dmin)
 
-    CS = np.sum(Dmax) / np.sum(Dmin)
-    # CS = np.mean(Dmax) / np.mean(Dmin)
-    # print(k, ': ', n, ': ',np.mean(Dmax),'\t', np.mean(Dmin), '\t', CS)
-    # sleep(1)
+    # print('Dmax:{} Dmin:{} cluster count:{} ci_data_member:{}'.format(Dmax, Dmin, k, ci_data_member))
+    print('CS:{}\t ,cluster_members_count:{}\t Dmax:{}\t Dmin:{}'.format(CS, [len(item) for item in ci_data_member], Dmax, Dmin))
     return CS
-
 
 def fitness(dataset, genes):
     f = CS_index(dataset, genes)
     return f
 
 
-
 class Ga:
     # ga params
-    MaxIt = 200  # Maximum Number of Iterations
+    MaxIt = 50  # Maximum Number of Iterations
     nPop = 100  # Population Size
     pc = 0.8  # Crossover Percentage
     nc = 2 * round(pc * nPop / 2)  # Number of Offsprings (Parnets)
@@ -148,7 +148,6 @@ class Ga:
 
         plt.pause(0.001)
 
-
     def fit(self, dataset):
         self.dataset = np.array(dataset)
         try:
@@ -194,22 +193,9 @@ class Ga:
             # temp_pop_list[0] = pop_list[0]
             temp_pop_list[0:self.nPop] = pop_list
 
-            # for item in temp_pop_list:
-            #     try:
-            #         print(item.Genes)
-            #     except:
-            #         pass
-            # print('-----------')
             # crossover
             temp_pop_list[self.nPop:self.nPop + self.nc] = self.crossover(pop_list=pop_list, nc=self.nc)
             temp_pop_list[self.nPop + self.nc:] = self.mutation(pop_list=pop_list, nm=self.nm)
-
-            # for item in temp_pop_list:
-            #     try:
-            #         print(item.Genes)
-            #     except:
-            #         pass
-
 
             sort_list = np.sort(temp_pop_list)
 
@@ -246,14 +232,12 @@ class Ga:
         nc_pop =deepcopy(np.random.choice(pop_list, size=nm))
 
         c = np.shape(nc_pop[0].Genes)
-        coeff = np.random.rand(nm * self.dimension * self.n_gene) * 0.9
+        coeff = np.random.rand(nm * self.dimension * self.n_gene)
         coeff = np.resize(coeff, (nm, self.n_gene, self.dimension ))
         # coeff[:,-1] = 1
 
         for i in range(nm):
-            a = np.shape(nc_pop[i].Genes[:,0])
-            b = np.shape(coeff[i])
-            nc_pop[i].Genes[:,:-1] *= coeff[i]
+            nc_pop[i].Genes[:,:-1] = ((nc_pop[i].Genes[:, :-1] - self.dimension_min_value) * coeff[i]) + self.dimension_min_value
             nc_pop[i].Fitness = self.fitness(dataset=self.dataset, genes=nc_pop[i].Genes)
         # return np.array([self.get_Chromosime() for i in range(nm)])
         return nc_pop
@@ -265,7 +249,7 @@ if __name__ == '__main__':
     # dataset = [[random.randint(1,5)] for i in range(5)]
 
     # dataset = [[1,1.2,1.5,1.4],[3.1,3.5,4.1],[5,5.2,7]]
-    dataset = [[1],[1.2],[1.5],[1.8],[2], [3.1],[3.5],[3.9], [5],[5.2]]#,[5.4], [1.021],[1.58],[1.51],[10],[10.8],[8.8],[7.9],[0]]
+    dataset = [[1],[1.2],[1.5],[1.8],[2], [3.1],[3.5],[3.9], [5],[5.2],[5.4], [1.021],[1.58],[1.51],[10],[10.8],[8.8],[7.9]]
 
     print(dataset)
 
@@ -274,11 +258,23 @@ if __name__ == '__main__':
 
 
     print([item.Fitness for item in ga.best_fit])
-    for i in range(len(ga.best_fit)):
-        print(ga.best_fit[i].Genes)
+    # for i in range(len(ga.best_fit)):
+    #     print(ga.best_fit[i].Genes)
 
 
+    print(ga.best_fit[-1].Genes)
     print(ga.best_fit[-1].Fitness)
+
+    M = np.array([g[:-1] for g in ga.best_fit[-1].Genes if g[-1] == 1])  # cluster centers
+    k = len(M)  # cluster count
+
+    d = cdist(np.array(dataset), M)  # distance of all data to all cluster centers
+    data_cluster_indices = np.argmin(d, axis=1)  # all data clusters , center indices
+    # calculate all cluster members
+    ci_data_member = []
+    for i in range(k):
+        ci_data_member.append([dataset[j] for j in range(len(dataset)) if data_cluster_indices[j] == i])
+    print([len(item) for item in ci_data_member])
     # ga.refresh_plot()
     # ga.fig.show()
     # sleep(10)
