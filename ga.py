@@ -19,6 +19,46 @@ class Chromosome:
     def __gt__(self, other):
         return self.Fitness > other.Fitness
 
+def BD_index(dataset, genes):
+    M = np.array([g[:-1] for g in genes if g[-1] == 1])  # cluster centers
+    k = len(M)  # cluster count
+    n = len(dataset)  # data count
+
+    penalty = 10 * np.amax(cdist(dataset, dataset))
+    if k < 2:
+        return penalty
+
+    d = cdist(dataset, M)  # distance of all data to all cluster centers
+    data_cluster_indices = np.argmin(d, axis=1)  # all data clusters , center indices
+
+    ci_member = []
+    Siq = []
+    q = 2
+    for i in range(k):
+        ci_member.append([dataset[j] for j in range(n) if data_cluster_indices[j] == i])
+        if len(ci_member[i]) > 0:
+            a = [d[j, i] for j in range(n) if data_cluster_indices[j] == i]
+            b =np.power(np.mean(np.power(a,q)), 1/q)
+            Siq.append(b)
+        else:
+            Siq.append(penalty)
+
+    t = 2.0
+    Dijt = cdist(M,M,'minkowski', t)
+
+    Ritq=[]
+    for i in range(k):
+        f=[]
+        for j in range(k):
+            if j != i:
+                f.append((Siq[i] + Siq[j])/Dijt[i,j])
+        Ritq.append(max(f))
+
+    DB = np.mean(Ritq)
+
+    print('CS:{}\t ,cluster_members_count:{}\t Dmax:{}\t Dmin:{}'.format(DB, [len(item) for item in ci_member], 0, 0))
+    return DB
+
 def CS_index(dataset, genes):
     M = np.array([g[:-1] for g in genes if g[-1]==1])  # cluster centers
     k = len(M)  # cluster count
@@ -32,11 +72,11 @@ def CS_index(dataset, genes):
     data_cluster_indices = np.argmin(d, axis=1)  # all data clusters , center indices
 
     # calculate all cluster members
-    ci_data_member = []
+    ci_member = []
     Dmax = []
     for i in range(k):
-        ci_data_member.append([dataset[j] for j in range(n) if data_cluster_indices[j]==i])
-        Xi = np.array(ci_data_member[i])
+        ci_member.append([dataset[j] for j in range(n) if data_cluster_indices[j]==i])
+        Xi = np.array(ci_member[i])
         if len(Xi) > 1:
             max_xi = np.amax(cdist(Xi, Xi), axis=0)
             Dmax.append(np.mean(max_xi))
@@ -45,13 +85,13 @@ def CS_index(dataset, genes):
 
     # sum = 0
     # for i in range(k):
-    #     Xi = np.array(ci_data_member[i])
+    #     Xi = np.array(ci_member[i])
     #     if len(Xi) > 0:
     #         max_xi = np.amax(cdist(Xi, Xi), axis=0)
     #         sum += np.mean(max_xi)
     #     else:
     #         sum += 10 * np.amax(cdist(dataset,dataset))
-    #         # print([len(item) for item in ci_data_member])
+    #         # print([len(item) for item in ci_member])
     #
     # Dmax = sum/k
     # -----------
@@ -63,12 +103,13 @@ def CS_index(dataset, genes):
     # -----------
     CS = np.mean(Dmax) / np.mean(Dmin)
 
-    # print('Dmax:{} Dmin:{} cluster count:{} ci_data_member:{}'.format(Dmax, Dmin, k, ci_data_member))
-    print('CS:{}\t ,cluster_members_count:{}\t Dmax:{}\t Dmin:{}'.format(CS, [len(item) for item in ci_data_member], Dmax, Dmin))
+    # print('Dmax:{} Dmin:{} cluster count:{} ci_member:{}'.format(Dmax, Dmin, k, ci_member))
+    print('CS:{}\t ,cluster_members_count:{}\t Dmax:{}\t Dmin:{}'.format(CS, [len(item) for item in ci_member], Dmax, Dmin))
     return CS
 
 def fitness(dataset, genes):
-    f = CS_index(dataset, genes)
+    # f = CS_index(dataset, genes)
+    f = BD_index(dataset, genes)
     return f
 
 
