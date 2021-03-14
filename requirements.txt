@@ -2,3 +2,8 @@ pymysql
 termcolor
 psutil
 multiprocessing
+numpy
+pandas
+scipy
+matplotlib
+scikit-learn
