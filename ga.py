@@ -19,7 +19,7 @@ class Chromosome:
     def __gt__(self, other):
         return self.Fitness > other.Fitness
 
-def BD_index(dataset, genes):
+def DB_index(dataset, genes):
     M = np.array([g[:-1] for g in genes if g[-1] == 1])  # cluster centers
     k = len(M)  # cluster count
     n = len(dataset)  # data count
@@ -108,22 +108,28 @@ def CS_index(dataset, genes):
     return CS
 
 def fitness(dataset, genes):
+    CS_coeff = 0.4
+    DB_coeff = 0.6
     # f = CS_index(dataset, genes)
-    f = BD_index(dataset, genes)
+    # f = DB_index(dataset, genes)
+
+    f = CS_coeff * CS_index(dataset, genes) + DB_coeff * DB_index(dataset, genes)
     return f
 
 
 class Ga:
     # ga params
-    MaxIt = 50  # Maximum Number of Iterations
+    MaxIt = 100  # Maximum Number of Iterations
     nPop = 100  # Population Size
-    pc = 0.8  # Crossover Percentage
+    pc = 0.7  # Crossover Percentage
     nc = 2 * round(pc * nPop / 2)  # Number of Offsprings (Parnets)
-    pm = 0.3  # Mutation Percentage
+    pm = 0.4  # Mutation Percentage
     nm = round(pm * nPop)  # Number of Mutants
     gamma = 0.02
     mu = 0.05  # Mutation Rate
     beta = 8  # Selection Pressure
+    pb = 0.5
+    nb = round(pb * nPop)
 
     def __init__(self, fitness):
         self.fitness = fitness
@@ -230,17 +236,20 @@ class Ga:
             self.refresh_plot()
 
             # create temp pop list
-            temp_pop_list = np.zeros(self.nPop + self.nc + self.nm, type(Chromosome))  # + self.nm
+            temp_pop_list = np.zeros(self.nPop + self.nc + self.nm + self.nb, type(Chromosome))
             # temp_pop_list[0] = pop_list[0]
             temp_pop_list[0:self.nPop] = pop_list
 
-            # crossover
+            # crossover & mutation
             temp_pop_list[self.nPop:self.nPop + self.nc] = self.crossover(pop_list=pop_list, nc=self.nc)
-            temp_pop_list[self.nPop + self.nc:] = self.mutation(pop_list=pop_list, nm=self.nm)
+            temp_pop_list[self.nPop + self.nc:self.nPop + self.nc + self.nm] = self.mutation(pop_list=pop_list, nm=self.nm)
+            temp_pop_list[self.nPop + self.nc + self.nm:] = np.array([self.get_Chromosime() for i in range(self.nb)])
 
-            sort_list = np.sort(temp_pop_list)
+            # select population
+            pop_list = self.select(temp_pop_list, self.nPop)
 
-            pop_list = deepcopy(sort_list[0:self.nPop])
+            # sort_list = np.sort(temp_pop_list)
+            # pop_list = deepcopy(sort_list[0:self.nPop])
             # print(len(pop_list), len(pop_list[0].Genes))
             print('pop_list:{}\t Genes count:{}\t best active gene count:{}\t best fitness:{}'.
                   format(len(pop_list), len(pop_list[0].Genes),len([i for i in self.best_fit[-1].Genes if i[-1]==1]), self.best_fit[-1].Fitness ))
@@ -283,6 +292,43 @@ class Ga:
         # return np.array([self.get_Chromosime() for i in range(nm)])
         return nc_pop
 
+    def select(self,pop_list, need_pop_number):
+        n_pop_list = len(pop_list)
+        a = np.zeros((n_pop_list, 2), type(float))
+        a[:,0] = np.random.choice(range(n_pop_list), size=n_pop_list, replace=False)
+        a[:,1] = np.array([pop_list[a[i,0]].Fitness for i in range(n_pop_list) ])
+
+        max_fit_1 = np.amax(a[:,1])
+        min_fit_1 = np.amin(a[:,1])
+        for i in range(n_pop_list):
+            a[i, 1] = max_fit_1 / a[i, 1]
+
+        max_fit_2 = np.amax(a[:, 1])
+        min_fit_2 = np.amin(a[:, 1])
+        # a[:,1] = a[:,1] / max_fit_1
+
+        for i in range(n_pop_list - 1):
+            a[i+1,1] = a[i+1,1]+a[i,1]
+
+        max_fit = np.amax(a[:,1])
+
+        k = 1
+        res = np.zeros(need_pop_number, type(Chromosome))
+        sort_list = np.sort(pop_list)
+
+        res[0:k] = sort_list[0:k]
+
+        for i in range(need_pop_number - k):
+            r = random.random() * (max_fit - 1) + 1
+            for j in range(n_pop_list):
+                if a[j,1] >= r:
+                    res[i + k] = pop_list[a[j, 0]]
+                    break
+                # if j == n_pop_list - 1:
+                #     res[i] = pop_list[a[j, 0]]
+
+        return res
+
 
 if __name__ == '__main__':
 
@@ -290,7 +336,7 @@ if __name__ == '__main__':
     # dataset = [[random.randint(1,5)] for i in range(5)]
 
     # dataset = [[1,1.2,1.5,1.4],[3.1,3.5,4.1],[5,5.2,7]]
-    dataset = [[1],[1.2],[1.5],[1.8],[2], [3.1],[3.5],[3.9], [5],[5.2],[5.4], [1.021],[1.58],[1.51],[10],[10.8],[8.8],[7.9]]
+    dataset = [[1],[1.2],[1.5],[1.8],[2], [3.1],[3.5],[3.9], [5],[5.2],[5.4], [1.021],[1.58],[1.51],[10],[10.8],[8.6],[7.9]]
 
     print(dataset)
 
