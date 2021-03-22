@@ -1,15 +1,12 @@
 import numpy as np
-# import pandas as pd
 from time import time
 import math
 import random
 from copy import deepcopy
-# from scipy.spatial import distance
 
 from scipy.spatial.distance import cdist
 
 import matplotlib.pyplot as plt
-# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 
 class Chromosome:
@@ -27,7 +24,7 @@ def DB_index(dataset, genes):
     n = len(dataset)  # data count
 
     penalty = 1 * np.amax(cdist(dataset, dataset))
-    if k < 3:
+    if k < 2:
         return penalty
 
     d = cdist(dataset, M)  # distance of all data to all cluster centers
@@ -70,7 +67,7 @@ def CS_index(dataset, genes):
     n = len(dataset)  # data count
 
     penalty = 1 * np.amax(cdist(dataset, dataset))
-    if k < 3:
+    if k < 2:
         return penalty
 
     d = cdist(dataset, M)  # distance of all data to all cluster centers
@@ -105,7 +102,7 @@ def CS_index(dataset, genes):
 
 
 def fitness(dataset, genes):
-    CS_coeff = 0.55
+    CS_coeff = 0
     DB_coeff = 1 - CS_coeff
 
     f1 = DB_coeff * DB_index(dataset, genes)
@@ -119,14 +116,14 @@ class Ga:
     # ga params
     MaxIt = 50  # Maximum Number of Iterations
     nPop = 250  # Population Size
-    pc = 0.8  # Crossover Percentage
+    pc = 0.9  # Crossover Percentage
     nc = 2 * round(pc * nPop / 2)  # Number of Offsprings (Parents)
-    pm = 0.6  # Mutation Percentage
+    pm = 0.05  # Mutation Percentage
     nm = round(pm * nPop)  # Number of Mutants
     gamma = 0.02
     mu = 0.05  # Mutation Rate
     beta = 8  # Selection Pressure
-    pb = 0.4
+    pb = 0.0
     nb = round(pb * nPop)
 
     def __init__(self, fitness):
@@ -214,6 +211,34 @@ class Ga:
 
         pop_list = np.array([self.get_Chromosome() for i in range(self.nPop)])
 
+        # # --------------------
+        # pop_list[0].Genes[:,:-1] = self.dataset
+        # pop_list[0].Genes[:,-1] = 1
+        # t= True
+        # while t == True:
+        #     t = False
+        #     M = []
+        #     M_index = []
+        #     for i in range(len(pop_list[0].Genes)):
+        #         if pop_list[0].Genes[i][-1] >= 0.5:
+        #             M.append(pop_list[0].Genes[i][:-1])
+        #             M_index.append(i)
+        #     M = np.array(M)
+        #     # M = np.array([g[:-1] for g in pop_list[0].Genes if g[-1] >= 0.5])  # cluster centers
+        #     k = len(M)  # cluster count
+        #     c = cdist(M, M)
+        #     for i in range(k):
+        #         c[i, i] = np.inf
+        #     Dmin = np.amin(c, axis=0)
+        #     for i in range(k):
+        #         if Dmin[i] == 0:
+        #             pop_list[0].Genes[M_index[i],-1] = 0
+        #             t = True
+        #             break
+        # a = self.fitness(self.dataset, genes=pop_list[0].Genes)
+        # pop_list[0].Fitness = self.fitness(self.dataset, genes=pop_list[0].Genes)
+        # # --------------------
+
         # self.F_data = np.zeros((self.MaxIt,2))
         for i in range(self.MaxIt):
             # self.best_fit.append(deepcopy(min( pop_list)))
@@ -244,7 +269,7 @@ class Ga:
             pop_list = self.select(temp_pop_list, self.nPop)
 
             self.best_fit.append(deepcopy(min(pop_list)))
-            self.plot_update(dataset=dataset, best_fitness=self.best_fit)
+            self.plot_update(dataset=self.dataset, best_fitness=self.best_fit)
 
             print('pop_list:{}\t Genes count:{}\t best active gene count:{}\t best fitness:{}'.
                   format(len(pop_list), len(pop_list[0].Genes),
@@ -314,6 +339,8 @@ class Ga:
         max_fit_1 = np.amax(a[:, 1])
         # min_fit_1 = np.amin(a[:, 1])
         for i in range(n_pop_list):
+            if a[i, 1] == 0:
+                a[i, 1] = 0.0001
             a[i, 1] = max_fit_1 / a[i, 1]
 
         # max_fit_2 = np.amax(a[:, 1])
@@ -325,20 +352,13 @@ class Ga:
 
         max_fit = np.amax(a[:, 1])
 
-        k = 20
+        k = 10
         res = np.zeros(need_pop_number, type(Chromosome))
         sort_list = np.sort(pop_list)
 
         res[0:k] = sort_list[0:k]
-        # try:
-        #     if 6*k > len(sort_list):
-        #         res[k:2 * k] = np.random.choice(sort_list[k:], size=k, replace=False)
-        #     else:
-        #         res[k:2*k] = np.random.choice(sort_list[k:5*k], size=k, replace=False)
-        # except:
-        #     res[k:2*k] = np.random.choice(sort_list[k:], size=k, replace=False)
 
-        p = round(need_pop_number * 0.02)
+        p = round(need_pop_number * 0.05)
         if p < 1:
             p = 1
         print(p)
@@ -397,7 +417,7 @@ if __name__ == '__main__':
     dataset = [[1], [1.2], [1.5], [1.8], [2], [3.1], [3.5], [3.9], [5], [5.2], [5.4],
                [1.021], [1.58], [1.51], [10], [10.8], [8.6], [7.7], [1], [1.32], [1.7],
                [8.8], [9], [3.1], [5.5], [3.9], [5.4], [5.22], [5.4], [1.021], [1.58],
-               [1.51], [16.0], [1.8], [8.1], [7.5]]
+               [1.51], [1.8], [8.1], [7.5]]#, [16.0]
 
     print(dataset)
 
