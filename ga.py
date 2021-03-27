@@ -18,6 +18,116 @@ class Chromosome:
         return self.Fitness > other.Fitness
 
 
+def knn_center(dataset, centers):
+    data = np.array(dataset)
+    n = len(dataset)
+    k = len(centers)
+    min_x = np.amin(data)
+    max_x = np.amax(data)
+
+    c = deepcopy(centers)
+
+    need_iter = True
+    iter = 0
+    while need_iter:
+        need_iter = False
+        iter += 1
+
+        dxc = cdist(dataset, c)
+        x_cluster_indices = np.argmin(dxc, axis=1)
+
+        for i in range(k):
+            ci_member = [data[j] for j in range(n) if x_cluster_indices[j] == i]
+            # cM.append(np.mean(ci_member[i], axis=1))
+            if len(ci_member) > 0:
+                nc = np.mean(ci_member, axis=0)
+                if c[i] != nc:
+                    need_iter = True
+                    c[i] = nc
+            else:
+                c[i] = np.random.rand()* (max_x - min_x) + min_x
+    return np.array(c)
+
+
+def correct_gene(dataset, genes):
+    t_gene =deepcopy(genes)
+    M = []
+    M_index = []
+    for i in range(len(t_gene)):
+        if t_gene[i][-1] >= 0.5:
+            M.append(t_gene[i][:-1])
+            M_index.append(i)
+
+    if len(M) == 0:
+        return genes
+
+    k = len(M)  # cluster count
+    M = np.array(M)
+    # n = len(dataset)  # data count
+
+    M = knn_center(dataset=dataset, centers=M)
+
+    for i in range(k):
+        t_gene[M_index[i]][:-1] = M[i]
+
+    return t_gene
+
+
+def DeD_index(dataset, genes):
+    M = np.array([g[:-1] for g in genes if g[-1] >= 0.5])  # cluster centers
+    k = len(M)  # cluster count
+    n = len(dataset)  # data count
+    dataset_sorted = np.sort(dataset, axis=0)
+
+    penalty = 1 * np.amax(cdist(dataset_sorted, dataset_sorted))
+    if k < 2:
+        return penalty
+
+    # step 1
+    # MD(x; Xi)=[1 + (x−Xi)]−1
+    x_mean = np.mean(dataset_sorted, axis=0)
+    x_minus_mn = dataset_sorted - x_mean
+    abs_x_minus_mn = np.abs(x_minus_mn)
+    Di = np.divide(1, abs_x_minus_mn + 1)
+    DM = max(Di)
+
+    # step 2
+    delta_k = []
+    d = cdist(dataset_sorted, M)  # distance of all data to all cluster centers
+    data_cluster_indices = np.argmin(d, axis=1)  # all data clusters , center indices
+
+    for i in range(k):
+        ci_member = np.array([[dataset_sorted[j], Di[j]] for j in range(n) if data_cluster_indices[j] == i])
+        if len(ci_member) > 1:
+            DMk = max(ci_member[:,1])
+            delta_k.append(np.mean(np.abs(ci_member[:,0] - DMk)))
+        else:
+            return penalty
+
+    DW = np.mean(delta_k)
+    delta = np.mean(np.abs(Di - DM))
+    DB = delta - DW
+    ded = DW - DB
+    DeD = 1 / (1 + DW - DB)
+
+    return DeD
+
+
+def Knn_index(dataset, genes):
+    # M = np.array(genes)  # cluster centers
+    M = np.array([g[:-1] for g in genes if g[-1] >= 0.5])  # cluster centers
+
+    # k = len(M)  # cluster count
+    # n = len(dataset)  # data count
+
+    # penalty = 1 * np.amax(cdist(dataset, dataset))
+
+    d = cdist(dataset, M)  # distance of all data to all cluster centers
+    # data_cluster_indices = np.argmin(d, axis=1)  # all data clusters , center indices
+
+    return np.sum(np.amin(d, axis=1))
+
+
 def DB_index(dataset, genes):
     M = np.array([g[:-1] for g in genes if g[-1] >= 0.5])  # cluster centers
     k = len(M)  # cluster count
@@ -102,13 +212,18 @@ def CS_index(dataset, genes):
 
 
 def fitness(dataset, genes):
-    CS_coeff = 0
+    CS_coeff = 1
     DB_coeff = 1 - CS_coeff
 
-    f1 = DB_coeff * DB_index(dataset, genes)
-    f2 = CS_coeff * CS_index(dataset, genes)
-    f = f1 + f2
+    genes = correct_gene(dataset=dataset, genes=genes)
+
+    # f1 = DB_coeff * DB_index(dataset, genes)
+    # f2 = CS_coeff * CS_index(dataset, genes)
+    # f = f1 + f2
     # print('Fitness: {}\t DB:{}\t CS:{}'.format(f, f1,f2))
+
+    # f = DeD_index(dataset, genes)
+    f = Knn_index(dataset, genes)
     return f
 
 
